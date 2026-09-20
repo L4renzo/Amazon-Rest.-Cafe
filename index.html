@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="color-scheme" content="dark light">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Amazon Rest. & Cafe</title>
+</head>
+<body>
+
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap');
 
@@ -661,9 +663,6 @@
   .about-save-row .btn-solid, .about-save-row .btn-ghost{ flex:1; }
 
 </style>
-</head>
-<body>
-
 
 <div id="app" data-lang="en">
 
@@ -884,6 +883,7 @@
 
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 (function(){
   "use strict";
@@ -927,7 +927,8 @@
       item_desc_label:"Description",
       item_cancel_btn:"Cancel",
       item_save_btn:"Save dish",
-      item_delete_confirm:"Remove this dish from the menu?"
+      item_delete_confirm:"Remove this dish from the menu?",
+      sync_error:"Could not save — check your connection and try again."
     },
     ar: {
       nav_home:"الرئيسية", nav_menu:"القائمة", nav_about:"من نحن", nav_settings:"الإعدادات",
@@ -967,7 +968,8 @@
       item_desc_label:"الوصف",
       item_cancel_btn:"إلغاء",
       item_save_btn:"حفظ الطبق",
-      item_delete_confirm:"حذف هذا الطبق من القائمة؟"
+      item_delete_confirm:"حذف هذا الطبق من القائمة؟",
+      sync_error:"تعذّر الحفظ — تحقق من الاتصال وحاول مرة أخرى."
     },
     ckb: {
       nav_home:"سەرەکی", nav_menu:"مێنیو", nav_about:"دەربارە", nav_settings:"ڕێکخستن",
@@ -1007,7 +1009,8 @@
       item_desc_label:"پێناسە",
       item_cancel_btn:"هەڵوەشاندنەوە",
       item_save_btn:"هەڵگرتنی خۆراک",
-      item_delete_confirm:"ئەم خۆراکە لە مێنیو بسڕدرێتەوە؟"
+      item_delete_confirm:"ئەم خۆراکە لە مێنیو بسڕدرێتەوە؟",
+      sync_error:"هەڵگرتن سەرکەوتوو نەبوو — پەیوەندییەکەت بپشکنە و دووبارە هەوڵبدەرەوە."
     }
   };
 
@@ -1031,6 +1034,13 @@
     {id:'drinks', en:'Drinks', ar:'المشروبات', ckb:'خواردنەوە'}
   ];
   var ADMIN_PASSWORD = 'xqcz74';
+
+  /* ============ Supabase (shared database, all visitors see the same data) ============ */
+  var SUPABASE_URL = 'https://cprpykpwjmmafuafmydc.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwcnB5a3B3am1tYWZ1YWZteWRjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk5MDQzOTQsImV4cCI6MjEwNTQ4MDM5NH0.pzsBHaognwjfOEJrGAXR1W1v5s0BB5fR8GLQjZxtE3g';
+  var sb = (window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
   var app = document.getElementById('app');
   var modal = document.getElementById('langModal');
@@ -1179,20 +1189,78 @@
     refreshAdminUI();
   });
 
-  /* ============ menu data (stored locally in this browser) ============ */
-  var MENU_KEY = 'amazon_menu_data_v1';
-  var ABOUT_KEY = 'amazon_about_v1';
-
-  function loadMenuData(){
-    try{
-      var raw = localStorage.getItem(MENU_KEY);
-      return raw ? JSON.parse(raw) : {};
-    }catch(e){ return {}; }
-  }
-  function saveMenuData(data){ safeSet(MENU_KEY, JSON.stringify(data)); }
-
-  var menuData = loadMenuData();
+  /* ============ menu data (shared, lives in Supabase — every visitor sees the same menu) ============ */
+  var menuData = {};
+  var menuDataLoaded = false;
   var activeCategory = null;
+
+  function fetchMenuData(cb){
+    if(!sb){ menuDataLoaded = true; cb && cb(); return; }
+    sb.from('menu_items').select('*').order('sort_order', { ascending: true }).order('created_at', { ascending: true })
+      .then(function(res){
+        if(res.error){ menuDataLoaded = true; cb && cb(res.error); return; }
+        var grouped = {};
+        (res.data || []).forEach(function(row){
+          if(!grouped[row.category]) grouped[row.category] = [];
+          grouped[row.category].push({ id: row.id, name: row.name, desc: row.description, image: row.image_url });
+        });
+        menuData = grouped;
+        menuDataLoaded = true;
+        cb && cb(null);
+      })
+      .catch(function(err){ menuDataLoaded = true; cb && cb(err); });
+  }
+
+  function dataUrlToBlob(dataUrl){
+    var parts = dataUrl.split(',');
+    var mimeMatch = parts[0].match(/:(.*?);/);
+    var mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+    var binary = atob(parts[1]);
+    var arr = new Uint8Array(binary.length);
+    for(var i = 0; i < binary.length; i++){ arr[i] = binary.charCodeAt(i); }
+    return new Blob([arr], { type: mime });
+  }
+
+  /* uploads the already-compressed dish photo to Supabase Storage and
+     hands back its public URL (or null if there was no photo / it failed) */
+  function uploadDishPhoto(dataUrl, cb){
+    if(!dataUrl || !sb){ cb(null); return; }
+    var blob = dataUrlToBlob(dataUrl);
+    var path = 'dish_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7) + '.jpg';
+    sb.storage.from('menu-photos').upload(path, blob, { contentType: 'image/jpeg', upsert: false })
+      .then(function(res){
+        if(res.error){ cb(null); return; }
+        var pub = sb.storage.from('menu-photos').getPublicUrl(path);
+        cb(pub && pub.data ? pub.data.publicUrl : null);
+      })
+      .catch(function(){ cb(null); });
+  }
+
+  function addMenuItem(category, item, cb){
+    if(!sb){ cb(new Error('no-supabase')); return; }
+    sb.from('menu_items').insert([{ category: category, name: item.name, description: item.desc, image_url: item.image }]).select()
+      .then(function(res){
+        if(res.error){ cb(res.error); return; }
+        var row = res.data && res.data[0];
+        if(row){
+          if(!menuData[category]) menuData[category] = [];
+          menuData[category].push({ id: row.id, name: row.name, desc: row.description, image: row.image_url });
+        }
+        cb(null);
+      })
+      .catch(function(err){ cb(err); });
+  }
+
+  function deleteMenuItem(category, id, cb){
+    if(!sb){ cb(new Error('no-supabase')); return; }
+    sb.from('menu_items').delete().eq('id', id)
+      .then(function(res){
+        if(res.error){ cb(res.error); return; }
+        menuData[category] = (menuData[category] || []).filter(function(it){ return it.id !== id; });
+        cb(null);
+      })
+      .catch(function(err){ cb(err); });
+  }
 
   function catLabel(cat){
     var lang = app.getAttribute('data-lang') || 'en';
@@ -1241,9 +1309,10 @@
         del.addEventListener('click', function(){
           var lang = app.getAttribute('data-lang') || 'en';
           if(window.confirm(I18N[lang].item_delete_confirm)){
-            menuData[activeCategory] = (menuData[activeCategory] || []).filter(function(it){ return it.id !== item.id; });
-            saveMenuData(menuData);
-            renderMenuGrid();
+            deleteMenuItem(activeCategory, item.id, function(err){
+              if(err){ showToast(I18N[app.getAttribute('data-lang') || 'en'].sync_error || 'Could not delete — try again'); return; }
+              renderMenuGrid();
+            });
           }
         });
         card.appendChild(del);
@@ -1289,6 +1358,7 @@
   var itemPhotoPreview = document.getElementById('itemPhotoPreview');
   var itemNameInput = document.getElementById('itemNameInput');
   var itemDescInput = document.getElementById('itemDescInput');
+  var itemSaveBtn = document.getElementById('itemSaveBtn');
   var pendingImageData = null;
 
   function openItemModal(){
@@ -1341,30 +1411,48 @@
     });
   });
 
-  document.getElementById('itemSaveBtn').addEventListener('click', function(){
+  itemSaveBtn.addEventListener('click', function(){
     var name = itemNameInput.value.trim();
-    if(!name || !activeCategory) return;
-    var item = {
-      id: 'it_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
-      name: name,
-      desc: itemDescInput.value.trim(),
-      image: pendingImageData || null
-    };
-    if(!menuData[activeCategory]) menuData[activeCategory] = [];
-    menuData[activeCategory].push(item);
-    saveMenuData(menuData);
-    closeItemModal();
-    renderMenuGrid();
+    if(!name || !activeCategory || itemSaveBtn.disabled) return;
+    itemSaveBtn.disabled = true;
+    var lang = app.getAttribute('data-lang') || 'en';
+    var desc = itemDescInput.value.trim();
+    uploadDishPhoto(pendingImageData, function(imageUrl){
+      addMenuItem(activeCategory, { name: name, desc: desc, image: imageUrl }, function(err){
+        itemSaveBtn.disabled = false;
+        if(err){
+          showToast(I18N[lang].sync_error || 'Could not save — try again');
+          return;
+        }
+        closeItemModal();
+        renderMenuGrid();
+      });
+    });
   });
 
-  /* ============ about page ============ */
+  /* ============ about page (shared, lives in Supabase) ============ */
   var aboutBody = document.getElementById('aboutBody');
   var aboutTextarea = document.getElementById('aboutTextarea');
   var aboutSaveRow = document.getElementById('aboutSaveRow');
+  var aboutSaveBtn = document.getElementById('aboutSaveBtn');
+  var aboutText = null;
+  var aboutLoaded = false;
+
+  function fetchAbout(cb){
+    if(!sb){ aboutLoaded = true; cb && cb(); return; }
+    sb.from('about_content').select('body').eq('id', 1).maybeSingle()
+      .then(function(res){
+        if(res.error){ aboutLoaded = true; cb && cb(res.error); return; }
+        aboutText = res.data ? res.data.body : null;
+        aboutLoaded = true;
+        cb && cb(null);
+      })
+      .catch(function(err){ aboutLoaded = true; cb && cb(err); });
+  }
 
   function renderAbout(){
     var lang = app.getAttribute('data-lang') || 'en';
-    var saved = safeGet(ABOUT_KEY);
+    var saved = aboutText;
     if(isAdmin){
       aboutBody.hidden = true;
       aboutTextarea.hidden = false;
@@ -1384,16 +1472,38 @@
       }
     }
   }
-  document.getElementById('aboutSaveBtn').addEventListener('click', function(){
-    safeSet(ABOUT_KEY, aboutTextarea.value);
-    renderAbout();
-    showToast(app.getAttribute('data-lang') === 'ar' ? 'تم الحفظ' : (app.getAttribute('data-lang') === 'ckb' ? 'هەڵگیرا' : 'Saved'));
+  aboutSaveBtn.addEventListener('click', function(){
+    if(!sb || aboutSaveBtn.disabled) return;
+    var lang = app.getAttribute('data-lang') || 'en';
+    var val = aboutTextarea.value;
+    aboutSaveBtn.disabled = true;
+    sb.from('about_content').upsert({ id: 1, body: val }).then(function(res){
+      aboutSaveBtn.disabled = false;
+      if(res.error){
+        showToast(I18N[lang].sync_error || 'Could not save — try again');
+        return;
+      }
+      aboutText = val;
+      renderAbout();
+      showToast(lang === 'ar' ? 'تم الحفظ' : (lang === 'ckb' ? 'هەڵگیرا' : 'Saved'));
+    }).catch(function(){
+      aboutSaveBtn.disabled = false;
+      showToast(I18N[lang].sync_error || 'Could not save — try again');
+    });
   });
 
   refreshAdminUI();
 
-  /* now that every view (home/menu/about), the admin zone and the menu
-     data are wired up, do the first real render */
+  /* now that every view (home/menu/about) and the admin zone are wired up,
+     pull the shared menu + about content from Supabase and render it —
+     every visitor sees the same data because it all lives in the database,
+     not in this browser's localStorage */
+  fetchMenuData(function(){
+    renderMenuChips();
+    if(activeCategory){ renderMenuGrid(); }
+  });
+  fetchAbout(function(){ renderAbout(); });
+
   var savedLang = safeGet(STORE_KEY);
   if(savedLang){
     applyLang(savedLang);
@@ -1456,5 +1566,6 @@
 
 })();
 </script>
+
 </body>
 </html>
