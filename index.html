@@ -569,10 +569,21 @@
     aspect-ratio: 4/3;
     object-fit: cover;
     background: var(--bg-brown-2);
+    cursor: zoom-in;
   }
   .menu-card-body{ padding: 16px 18px 20px; display:flex; flex-direction:column; gap:6px; }
   .menu-card-name{ font-family: var(--font-display); font-size: 19px; color:var(--text); }
   .menu-card-desc{ font-size: 13.5px; line-height:1.55; color: var(--text-dim); }
+  .menu-card-price{
+    display:flex;
+    align-items:baseline;
+    gap: 10px;
+    margin-top: 2px;
+    font-weight: 800;
+    color: var(--gold-soft);
+  }
+  .menu-card-price .price-iqd{ font-size: 15px; }
+  .menu-card-price .price-usd{ font-size: 12.5px; color: var(--text-faint); font-weight:700; }
   .menu-card-del{
     position:absolute; top:10px; right:10px;
     width:30px; height:30px;
@@ -626,8 +637,47 @@
     margin-top: 10px;
     border: 1px solid var(--line);
   }
+  .field-row{ display:flex; gap:12px; }
+  .field-row > div{ flex:1; min-width:0; }
   .modal-actions{ display:flex; gap:10px; margin-top:22px; }
   .modal-actions .btn-solid, .modal-actions .btn-ghost{ flex:1; }
+
+  /* ---------- photo lightbox ---------- */
+  .lightbox{
+    position: fixed; inset:0;
+    background: rgba(8,5,3,.92);
+    display:flex; align-items:center; justify-content:center;
+    padding: 28px;
+    z-index: 90;
+    opacity:0;
+    pointer-events:none;
+    transition: opacity .2s ease;
+  }
+  .lightbox.open{ opacity:1; pointer-events:auto; }
+  .lightbox img{
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: var(--radius-md);
+    box-shadow: 0 50px 100px -30px rgba(0,0,0,.7);
+    cursor: zoom-out;
+    transform: scale(.96);
+    transition: transform .2s ease;
+  }
+  .lightbox.open img{ transform: scale(1); }
+  .lightbox-close{
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 16px);
+    right: 16px;
+    width: 40px; height:40px;
+    border-radius: 50%;
+    background: rgba(20,13,8,.7);
+    border: 1px solid rgba(227,182,79,.4);
+    color: var(--text);
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    z-index: 91;
+  }
+  .lightbox-close svg{ width:18px; height:18px; }
 
   /* ---------- about page ---------- */
   .about-page{
@@ -816,11 +866,29 @@
     <input class="field-input" type="text" id="itemNameInput" />
     <label class="field-label" for="itemDescInput" data-i18n="item_desc_label">Description</label>
     <textarea class="field-textarea" id="itemDescInput"></textarea>
+    <div class="field-row">
+      <div>
+        <label class="field-label" for="itemPriceIqdInput" data-i18n="item_price_iqd_label">Price (IQD)</label>
+        <input class="field-input" type="number" inputmode="numeric" min="0" step="250" id="itemPriceIqdInput" data-i18n-placeholder="item_price_iqd_ph" placeholder="e.g. 5000" />
+      </div>
+      <div>
+        <label class="field-label" for="itemPriceUsdInput" data-i18n="item_price_usd_label">Price ($)</label>
+        <input class="field-input" type="number" inputmode="decimal" min="0" step="0.5" id="itemPriceUsdInput" data-i18n-placeholder="item_price_usd_ph" placeholder="e.g. 3.50" />
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn-ghost" id="itemCancelBtn" data-i18n="item_cancel_btn">Cancel</button>
       <button class="btn-solid" id="itemSaveBtn" data-i18n="item_save_btn">Save dish</button>
     </div>
   </div>
+</div>
+
+<!-- PHOTO LIGHTBOX -->
+<div class="lightbox" id="lightbox">
+  <button class="lightbox-close" id="lightboxClose" aria-label="Close">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+  <img id="lightboxImg" src="" alt="" />
 </div>
 
 <!-- LANGUAGE MODAL -->
@@ -925,6 +993,10 @@
       item_photo_label:"Photo",
       item_name_label:"Name",
       item_desc_label:"Description",
+      item_price_iqd_label:"Price (IQD)",
+      item_price_iqd_ph:"e.g. 5000",
+      item_price_usd_label:"Price ($)",
+      item_price_usd_ph:"e.g. 3.50",
       item_cancel_btn:"Cancel",
       item_save_btn:"Save dish",
       item_delete_confirm:"Remove this dish from the menu?",
@@ -966,6 +1038,10 @@
       item_photo_label:"الصورة",
       item_name_label:"الاسم",
       item_desc_label:"الوصف",
+      item_price_iqd_label:"السعر (دينار)",
+      item_price_iqd_ph:"مثال: 5000",
+      item_price_usd_label:"السعر ($)",
+      item_price_usd_ph:"مثال: 3.50",
       item_cancel_btn:"إلغاء",
       item_save_btn:"حفظ الطبق",
       item_delete_confirm:"حذف هذا الطبق من القائمة؟",
@@ -1007,6 +1083,10 @@
       item_photo_label:"وێنە",
       item_name_label:"ناو",
       item_desc_label:"پێناسە",
+      item_price_iqd_label:"نرخ (دیناری عێراقی)",
+      item_price_iqd_ph:"نموونە: 5000",
+      item_price_usd_label:"نرخ ($)",
+      item_price_usd_ph:"نموونە: 3.50",
       item_cancel_btn:"هەڵوەشاندنەوە",
       item_save_btn:"هەڵگرتنی خۆراک",
       item_delete_confirm:"ئەم خۆراکە لە مێنیو بسڕدرێتەوە؟",
@@ -1110,6 +1190,28 @@
     toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
   }
 
+  /* ============ dish photo lightbox — click a menu photo to view it full
+     size, click anywhere (backdrop, the photo itself, the close button,
+     or Escape) to get back out ============ */
+  var lightbox = document.getElementById('lightbox');
+  var lightboxImg = document.getElementById('lightboxImg');
+  function openLightbox(src, alt){
+    lightboxImg.src = src;
+    lightboxImg.alt = alt || '';
+    lightbox.classList.add('open');
+  }
+  function closeLightbox(){
+    lightbox.classList.remove('open');
+  }
+  lightbox.addEventListener('click', closeLightbox);
+  document.getElementById('lightboxClose').addEventListener('click', function(e){
+    e.stopPropagation();
+    closeLightbox();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape') closeLightbox();
+  });
+
   /* ============ view switching (home / menu / about) ============ */
   var views = { home: document.getElementById('view-home'), menu: document.getElementById('view-menu'), about: document.getElementById('view-about') };
   var currentView = 'home';
@@ -1202,7 +1304,7 @@
         var grouped = {};
         (res.data || []).forEach(function(row){
           if(!grouped[row.category]) grouped[row.category] = [];
-          grouped[row.category].push({ id: row.id, name: row.name, desc: row.description, image: row.image_url });
+          grouped[row.category].push({ id: row.id, name: row.name, desc: row.description, image: row.image_url, priceIqd: row.price_iqd, priceUsd: row.price_usd });
         });
         menuData = grouped;
         menuDataLoaded = true;
@@ -1238,13 +1340,20 @@
 
   function addMenuItem(category, item, cb){
     if(!sb){ cb(new Error('no-supabase')); return; }
-    sb.from('menu_items').insert([{ category: category, name: item.name, description: item.desc, image_url: item.image }]).select()
+    sb.from('menu_items').insert([{
+      category: category,
+      name: item.name,
+      description: item.desc,
+      image_url: item.image,
+      price_iqd: item.priceIqd,
+      price_usd: item.priceUsd
+    }]).select()
       .then(function(res){
         if(res.error){ cb(res.error); return; }
         var row = res.data && res.data[0];
         if(row){
           if(!menuData[category]) menuData[category] = [];
-          menuData[category].push({ id: row.id, name: row.name, desc: row.description, image: row.image_url });
+          menuData[category].push({ id: row.id, name: row.name, desc: row.description, image: row.image_url, priceIqd: row.price_iqd, priceUsd: row.price_usd });
         }
         cb(null);
       })
@@ -1265,6 +1374,21 @@
   function catLabel(cat){
     var lang = app.getAttribute('data-lang') || 'en';
     return cat[lang] || cat.en;
+  }
+
+  /* builds the little "5,000 IQD  $3.50" price line shown on a dish card;
+     either currency is optional, and nothing is shown if both are empty */
+  function formatPrice(iqd, usd){
+    var parts = [];
+    if(iqd !== null && iqd !== undefined && iqd !== ''){
+      var n = Number(iqd);
+      if(!isNaN(n)) parts.push('<span class="price-iqd">' + n.toLocaleString('en-US') + ' IQD</span>');
+    }
+    if(usd !== null && usd !== undefined && usd !== ''){
+      var m = Number(usd);
+      if(!isNaN(m)) parts.push('<span class="price-usd">$' + m.toFixed(2).replace(/\.00$/, '') + '</span>');
+    }
+    return parts.join('');
   }
 
   function renderMenuChips(){
@@ -1323,6 +1447,7 @@
         img.className = 'menu-card-photo';
         img.src = item.image;
         img.alt = item.name;
+        img.addEventListener('click', function(){ openLightbox(this.src, this.alt); });
         card.appendChild(img);
       }
       var body = document.createElement('div');
@@ -1331,6 +1456,13 @@
       name.className = 'menu-card-name';
       name.textContent = item.name;
       body.appendChild(name);
+      var priceLine = formatPrice(item.priceIqd, item.priceUsd);
+      if(priceLine){
+        var priceEl = document.createElement('div');
+        priceEl.className = 'menu-card-price';
+        priceEl.innerHTML = priceLine;
+        body.appendChild(priceEl);
+      }
       if(item.desc){
         var desc = document.createElement('div');
         desc.className = 'menu-card-desc';
@@ -1358,12 +1490,16 @@
   var itemPhotoPreview = document.getElementById('itemPhotoPreview');
   var itemNameInput = document.getElementById('itemNameInput');
   var itemDescInput = document.getElementById('itemDescInput');
+  var itemPriceIqdInput = document.getElementById('itemPriceIqdInput');
+  var itemPriceUsdInput = document.getElementById('itemPriceUsdInput');
   var itemSaveBtn = document.getElementById('itemSaveBtn');
   var pendingImageData = null;
 
   function openItemModal(){
     itemNameInput.value = '';
     itemDescInput.value = '';
+    itemPriceIqdInput.value = '';
+    itemPriceUsdInput.value = '';
     itemPhotoInput.value = '';
     itemPhotoPreview.hidden = true;
     pendingImageData = null;
@@ -1374,9 +1510,8 @@
   document.getElementById('itemCancelBtn').addEventListener('click', closeItemModal);
   itemModal.addEventListener('click', function(e){ if(e.target === itemModal) closeItemModal(); });
 
-  /* shrink + compress the photo client-side (this is a static page with no
-     server yet, so photos live in this browser's localStorage — keeping
-     them small keeps that storage from filling up) */
+  /* shrink + compress the photo client-side before it's uploaded to
+     Supabase Storage — keeps uploads small and fast */
   function readAndCompressImage(file, cb){
     var reader = new FileReader();
     reader.onload = function(e){
@@ -1417,8 +1552,12 @@
     itemSaveBtn.disabled = true;
     var lang = app.getAttribute('data-lang') || 'en';
     var desc = itemDescInput.value.trim();
+    var priceIqdRaw = itemPriceIqdInput.value.trim();
+    var priceUsdRaw = itemPriceUsdInput.value.trim();
+    var priceIqd = priceIqdRaw === '' ? null : Number(priceIqdRaw);
+    var priceUsd = priceUsdRaw === '' ? null : Number(priceUsdRaw);
     uploadDishPhoto(pendingImageData, function(imageUrl){
-      addMenuItem(activeCategory, { name: name, desc: desc, image: imageUrl }, function(err){
+      addMenuItem(activeCategory, { name: name, desc: desc, image: imageUrl, priceIqd: priceIqd, priceUsd: priceUsd }, function(err){
         itemSaveBtn.disabled = false;
         if(err){
           showToast(I18N[lang].sync_error || 'Could not save — try again');
